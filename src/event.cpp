@@ -24,13 +24,22 @@ void EventManager::update(float delta)
 		{
 			if (auto camera = RE::RaceSexCamera::GetSingleton())
 			{
+				// Update camera position based on input
 				camera->pos.x += (mouse_delta_x + gamepad_delta_x) * delta * config::pan_speed;
 				camera->pos.y += (mouse_delta_y + gamepad_delta_y) * delta * config::pan_speed;
 
-				root->local.translate = camera->pos;
-				
-				RE::NiUpdateData data;
-				root->UpdateWorldData(&data);
+			    // Clamp camera position to defined boundaries
+				camera->pos.x = std::clamp(camera->pos.x, config::min_camera_x, config::max_camera_x);
+				camera->pos.y = std::clamp(camera->pos.y, config::min_camera_y, config::max_camera_y);
+
+				// Apply the updated position to the camera's 3D node
+				if (auto root = camera->Get3D())
+				{
+					root->local.translate = camera->pos;
+					
+					RE::NiUpdateData data;
+					root->UpdateWorldData(&data);
+				}
 			}
 		}
 	}
@@ -56,7 +65,7 @@ RE::BSEventNotifyControl EventManager::ProcessEvent(RE::InputEvent* const* event
 					switch (input_event->GetDevice())
 					{
 						case RE::INPUT_DEVICE::kKeyboard:
-							if (const auto key = button_event->GetIDCode(); key == config::rotate_key_code)
+							if (const auto key = button_event->GetIDCode(); key == config::rotate_mouse_button)
 								allow_rotate = button_event->IsHeld();
 							break;
 						case RE::INPUT_DEVICE::kMouse:
@@ -68,9 +77,9 @@ RE::BSEventNotifyControl EventManager::ProcessEvent(RE::InputEvent* const* event
 						case RE::INPUT_DEVICE::kGamepad:
 							if (const auto gamepadButton = button_event->GetIDCode(); gamepadButton == config::pan_gamepad_button)
 								allow_pan = button_event->IsHeld();
-							break;
+							continue;
 					}
-					break;
+					continue;
 				}
 				case RE::INPUT_EVENT_TYPE::kMouseMove:
 				{
@@ -81,9 +90,24 @@ RE::BSEventNotifyControl EventManager::ProcessEvent(RE::InputEvent* const* event
 				}
 				case RE::INPUT_EVENT_TYPE::kThumbstick:
 				{
-					auto thumbstick_event = reinterpret_cast<RE::ThumbstickEvent::kRightThumbstick*>(input_event->AsIDEvent());
-					gamepad_delta_x = static_cast<int32_t>(thumbstick_event->xValue * 10);
-					gamepad_delta_y = static_cast<int32_t>(thumbstick_event->yValue * 10);
+					auto thumbstick_event = reinterpret_cast<RE::ThumbstickEvent*>(input_event->AsIDEvent());
+					if (thumbstick_event->inputType == RE::ThumbstickEvent::InputTypes::kRightThumbstick) && (allow_pan == false)
+					{
+						mouse_delta_x = static_cast<int32_t>(thumbstick_event->xValue * 10);
+						mouse_delta_y = static_cast<int32_t>(thumbstick_event->yValue * 10);
+						allow_rotate = true; // Enable rotation when the right thumbstick is moved and panning is disabled
+					}
+					break;
+				}
+				case RE::INPUT_EVENT_TYPE::kThumbstick:
+				{
+					auto thumbstick_event = reinterpret_cast<RE::ThumbstickEvent*>(input_event->AsIDEvent());
+					if (thumbstick_event->inputType == RE::ThumbstickEvent::InputTypes::kRightThumbstick) && (allow_rotate == false) && (button_event->IsHeld(true))
+					{
+						mouse_delta_x = static_cast<int32_t>(thumbstick_event->xValue * 10);
+						mouse_delta_y = static_cast<int32_t>(thumbstick_event->yValue * 10);
+						allow_pan = true; // Enable panning when the Right Thumbstick is moved && rotation is disabled && the button is held
+					}
 					break;
 				}
 			}

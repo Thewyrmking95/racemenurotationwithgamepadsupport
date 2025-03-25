@@ -6,12 +6,21 @@
 
 struct config
 {
+    // Buttons/Keys
    static inline uint32_t rotate_mouse_button { 257 }; // Left Mouse Button
    static inline uint32_t pan_mouse_button = 2; // Middle mouse button
-   static inline uint32_t pan_gamepad_button = 10; // L3 button
+   static inline uint32_t pan_gamepad_button = 0x0040; // L3 button
+
+    // Speeds
    static inline float min_rotate_speed = 3.f;
    static inline float max_rotate_speed = 12.f;
    static inline float pan_speed = 5.f;
+
+   // Camera position boundaries
+    static inline float min_camera_x = -100.f;
+    static inline float max_camera_x = 100.f;
+    static inline float min_camera_y = -50.f;
+    static inline float max_camera_y = 50.f;
 
    static void load()
    {
