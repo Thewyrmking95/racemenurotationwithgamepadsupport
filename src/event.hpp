@@ -23,6 +23,10 @@ public:
 	int32_t mouse_delta_x;
 	int32_t gamepad_delta_x;
 	RE::NiPoint3 angle;
+
+	bool allow_pan;
+	int32_t mouse_delta_y;
+	int32_t gamepad_delta_y;
 };
 
 static EventManager& EVENT_MANAGER { EventManager::get() };

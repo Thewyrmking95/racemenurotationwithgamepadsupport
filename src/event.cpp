@@ -3,21 +3,35 @@
 
 void EventManager::update(float delta)
 {
-	if (const auto player = RE::PlayerCharacter::GetSingleton(); player && allow_rotate)
+	if (const auto player = RE::PlayerCharacter::GetSingleton(); player)
 	{
-		if (std::abs(mouse_delta_x) == 0 && std::abs(gamepad_delta_x) == 0)
-			return;
-
-		if (auto root = player->Get3D(false))
+		if (allow_rotate && (std::abs(mouse_delta_x) > 0 || std::abs(gamepad_delta_x) > 0))
 		{
-			int dir = (mouse_delta_x > 0 || gamepad_delta_x > 0) ? -1 : 1;
-            float delta_x = std::abs(mouse_delta_x) > 0.0f ? static_cast<float>(mouse_delta_x) : static_cast<float>(gamepad_delta_x);
-			angle.z += dir * delta * std::lerp(config::min_rotate_speed, config::max_rotate_speed, std::abs(delta_x) / 360.f);
+			if (auto root = player->Get3D(false))
+			{
+				int dir = (mouse_delta_x > 0 || gamepad_delta_x > 0) ? -1 : 1;
+				float delta_x = std::abs(mouse_delta_x) > 0.0f ? static_cast<float>(mouse_delta_x) : static_cast<float>(gamepad_delta_x);
+				angle.z += dir * delta * std::lerp(config::min_rotate_speed, config::max_rotate_speed, std::abs(delta_x) / 360.f);
 
-			root->local.rotate.SetEulerAnglesXYZ(angle);
+				root->local.rotate.SetEulerAnglesXYZ(angle);
 
-			RE::NiUpdateData data;
-			root->UpdateWorldData(&data);
+				RE::NiUpdateData data;
+				root->UpdateWorldData(&data);
+			}
+		}
+
+		if (allow_pan && (std::abs(mouse_delta_x) > 0 || std::abs(mouse_delta_y) > 0 || std::abs(gamepad_delta_x) > 0 || std::abs(gamepad_delta_y) > 0))
+		{
+			if (auto camera = RE::RaceSexCamera::GetSingleton())
+			{
+				camera->pos.x += (mouse_delta_x + gamepad_delta_x) * delta * config::pan_speed;
+				camera->pos.y += (mouse_delta_y + gamepad_delta_y) * delta * config::pan_speed;
+
+				root->local.translate = camera->pos;
+				
+				RE::NiUpdateData data;
+				root->UpdateWorldData(&data);
+			}
 		}
 	}
 }
@@ -36,45 +50,42 @@ RE::BSEventNotifyControl EventManager::ProcessEvent(RE::InputEvent* const* event
 				case RE::INPUT_EVENT_TYPE::kButton:
 				{
 					auto button_event = input_event->AsButtonEvent();
-					if (!(button_event && button_event->IsHeld()))
-					{
-						allow_rotate = false;
+					if (!button_event)
 						continue;
-					}
 
 					switch (input_event->GetDevice())
 					{
 						case RE::INPUT_DEVICE::kKeyboard:
-							if (const auto key = button_event->GetIDCode(); key == config::key_code)
-							{
-								allow_rotate = true;
-								continue;
-							}
+							if (const auto key = button_event->GetIDCode(); key == config::rotate_key_code)
+								allow_rotate = button_event->IsHeld();
 							break;
 						case RE::INPUT_DEVICE::kMouse:
-							if (const auto mouseButton = button_event->GetIDCode(); mouseButton == (config::key_code - 0x100))
-							{
-								allow_rotate = true;
-								continue;
-							}
+							if (const auto mouseButton = button_event->GetIDCode(); mouseButton == config::rotate_mouse_button)
+								allow_rotate = button_event->IsHeld();
+							else if (mouseButton == config::pan_mouse_button)
+								allow_pan = button_event->IsHeld();
+							break;
+						case RE::INPUT_DEVICE::kGamepad:
+							if (const auto gamepadButton = button_event->GetIDCode(); gamepadButton == config::pan_gamepad_button)
+								allow_pan = button_event->IsHeld();
 							break;
 					}
-					continue;
+					break;
 				}
 				case RE::INPUT_EVENT_TYPE::kMouseMove:
 				{
 					auto mouse_event = reinterpret_cast<RE::MouseMoveEvent*>(input_event->AsIDEvent());
 					mouse_delta_x = mouse_event->mouseInputX;
+					mouse_delta_y = mouse_event->mouseInputY;
 					break;
 				}
-                case RE::INPUT_EVENT_TYPE::kThumbstick:
-                {
-                    // Simulate mouse input based on thumbstick movement
-                    auto thumbstick_event = reinterpret_cast<RE::ThumbstickEvent*>(input_event->AsIDEvent());
-                    mouse_delta_x = static_cast<int32_t>(thumbstick_event->xValue * 10); // Scale the thumbstick value to simulate mouse movement
-                    allow_rotate = true; // Allow rotation when thumbstick is moved
-                    break;
-                }
+				case RE::INPUT_EVENT_TYPE::kThumbstick:
+				{
+					auto thumbstick_event = reinterpret_cast<RE::ThumbstickEvent::kRightThumbstick*>(input_event->AsIDEvent());
+					gamepad_delta_x = static_cast<int32_t>(thumbstick_event->xValue * 10);
+					gamepad_delta_y = static_cast<int32_t>(thumbstick_event->yValue * 10);
+					break;
+				}
 			}
 		}
 	}
